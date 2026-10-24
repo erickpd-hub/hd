@@ -25,10 +25,12 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Generate Android Scaffolding & Get Dependencies
+      - name: Generate Fresh Android Scaffolding
         working-directory: ./mobile_chat_app
         run: |
+          rm -rf android
           flutter create . --org com.empresa --project-name portal_usuario_chat --platforms android
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>' android/app/src/main/AndroidManifest.xml
           flutter pub get
 
       - name: Build APK Release
