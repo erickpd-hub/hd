@@ -63,7 +63,7 @@ class ChatBubble extends StatelessWidget {
                   if (!isCustomer &&
                       (message.areaName != null || message.ticketId != null))
                     Padding(
-                      padding: const EdgeInsets.bottom: 8.0,
+                      padding: const EdgeInsets.only(bottom: 8.0),
                       child: Wrap(
                         spacing: 6,
                         runSpacing: 4,
