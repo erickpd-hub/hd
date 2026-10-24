@@ -390,7 +390,7 @@ export default function L1SaaSDashboard() {
 
   // Default to tickets tab as requested: "en el panel izquierdo lo primero que se debe de ver son los chats asignados"
   const [activeTab, setActiveTab] = useState<
-    "tickets" | "simulator" | "analytics" | "documents" | "topology" | "ingestion_logs" | "models_cost" | "users"
+    "tickets" | "ticket_registry" | "simulator" | "analytics" | "documents" | "topology" | "ingestion_logs" | "models_cost" | "users"
   >("tickets");
 
   // Estado de Skeleton Loading para transiciones de sección
@@ -446,6 +446,13 @@ export default function L1SaaSDashboard() {
   const areaFilterRef = useRef<HTMLDivElement>(null);
   const statusFilterRef = useRef<HTMLDivElement>(null);
   const [areaTabFilter, setAreaTabFilter] = useState<OperatorArea>("all");
+
+  // Estados para el módulo dedicado "Registro de Tickets"
+  const [registrySearchQuery, setRegistrySearchQuery] = useState("");
+  const [registryAreaFilter, setRegistryAreaFilter] = useState<OperatorArea>("all");
+  const [registryStatusFilter, setRegistryStatusFilter] = useState<"all" | "escalated" | "escalated_to_l3" | "closed">("all");
+  const [registryPriorityFilter, setRegistryPriorityFilter] = useState<"all" | "critical" | "high" | "medium" | "low">("all");
+  const [registryDetailTicket, setRegistryDetailTicket] = useState<TicketItem | null>(null);
 
   // Custom dropdown states for triage selects
   const [isTriageAreaOpen, setIsTriageAreaOpen] = useState(false);
@@ -1454,28 +1461,12 @@ export default function L1SaaSDashboard() {
           </div>
         </div>
 
-        {/* Right: User Portal Link, Latency, Settings, User Avatar */}
+        {/* Right: Latency, User Avatar */}
         <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg transition"
-          >
-            <span>Ver Portal Usuario (Chat)</span>
-            <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
-          </Link>
-
           <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-neutral-300 font-mono bg-neutral-900 border border-neutral-800 rounded-lg">
             <span className="w-1.5 h-1.5 rounded-full bg-white" />
             <span>38ms</span>
           </div>
-
-          <button
-            onClick={() => alert("Configuración de tenant y variables LLM.")}
-            className="p-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
-            title="Configuración"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
 
           {/* Menú de Perfil de Usuario con Despliegue Suave */}
           <div className="relative" ref={profileMenuRef}>
@@ -1668,6 +1659,24 @@ export default function L1SaaSDashboard() {
                 >
                   <BarChart3 className="w-3.5 h-3.5 text-neutral-400" />
                   <span>Analítica Operativa</span>
+                </button>
+
+                {/* 4. REGISTRO DE TICKETS */}
+                <button
+                  onClick={() => handleSwitchTab("ticket_registry")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
+                    activeTab === "ticket_registry"
+                      ? "bg-neutral-900 text-white border border-neutral-700 shadow-sm"
+                      : "text-neutral-400 hover:text-white hover:bg-neutral-900/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Ticket className="w-3.5 h-3.5 text-neutral-400" />
+                    <span>Registro de Tickets</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-neutral-400 font-semibold">
+                    {ticketsList.length}
+                  </span>
                 </button>
 
                 {/* 4. RAG & DOCUMENTOS */}
@@ -2365,120 +2374,487 @@ export default function L1SaaSDashboard() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Area Filter Tabs + Ticket Table */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Registro de Tickets (Todos los Departamentos)</h3>
-                  <div className="flex items-center gap-1.5 p-1 bg-neutral-950 border border-neutral-800 rounded-xl overflow-x-auto text-xs">
-                    {(["all", "Infraestructura", "Sap", "Magento", "Sigo"] as OperatorArea[]).map((area) => {
-                      const count = ticketsList.filter((t) =>
-                        area === "all" ? true : t.area.toLowerCase() === area.toLowerCase()
-                      ).length;
-                      return (
-                        <button
-                          key={area}
-                          onClick={() => setAreaTabFilter(area)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
-                            areaTabFilter === area
-                              ? "bg-neutral-800 text-white shadow-sm"
-                              : "text-neutral-400 hover:text-white hover:bg-neutral-900"
-                          }`}
-                        >
-                          <span>{area === "all" ? "Todas" : area}</span>
-                          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-neutral-900 text-neutral-300">
-                            {count}
-                          </span>
-                        </button>
-                      );
-                    })}
+          {/* ======================================================================= */}
+          {/* VIEW: REGISTRO DE TICKETS (MÓDULO DEDICADO - TODOS LOS DEPARTAMENTOS) */}
+          {/* ======================================================================= */}
+          {activeTab === "ticket_registry" && (
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-black">
+              {/* Header del Módulo */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-neutral-800">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-mono uppercase tracking-wider text-neutral-400">
+                      Plataforma / Auditoría
+                    </span>
+                  </div>
+                  <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                    <Ticket className="w-4 h-4 text-white" />
+                    <span>Registro de Tickets</span>
+                  </h2>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    Historial consolidado, estados operativos y trazabilidad de incidencias en todos los departamentos.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="px-3 py-1.5 rounded-lg bg-neutral-950 border border-neutral-800 text-xs font-mono text-neutral-300 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    <span>Total: {ticketsList.length} incidencias</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stat Cards Monocromáticas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800">
+                  <div className="flex items-center justify-between text-neutral-400 text-xs mb-1">
+                    <span>Total Registrados</span>
+                    <Ticket className="w-4 h-4 text-neutral-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white font-mono">{ticketsList.length}</div>
+                  <div className="text-[11px] text-neutral-400 mt-1">
+                    En 4 departamentos activos
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-neutral-900 text-neutral-400 border-b border-neutral-800 font-medium">
-                      <tr>
-                        <th className="px-4 py-3">ID</th>
-                        <th className="px-4 py-3">Asunto / Solicitante</th>
-                        <th className="px-4 py-3">Departamento</th>
-                        <th className="px-4 py-3">Categoría</th>
-                        <th className="px-4 py-3">Prioridad</th>
-                        <th className="px-4 py-3">Estado</th>
-                        <th className="px-4 py-3">Responsable</th>
-                        <th className="px-4 py-3">SLA</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-800 text-neutral-300">
-                      {ticketsList
-                        .filter((t) => {
-                          if (areaTabFilter === "all") return true;
-                          return t.area.toLowerCase() === areaTabFilter.toLowerCase();
-                        })
-                        .map((t) => (
-                          <tr key={t.id} className="hover:bg-neutral-900/60 transition">
-                            <td className="px-4 py-3 font-mono text-neutral-300 font-semibold">{t.id}</td>
-                            <td className="px-4 py-3 max-w-xs">
-                              <div className="font-medium text-white truncate">{t.title}</div>
-                              <div className="text-[11px] text-neutral-500">{t.requester}</div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`font-mono text-xs font-medium ${
-                                t.area === "Infraestructura"
-                                  ? "text-sky-400"
-                                  : t.area === "Sap"
-                                  ? "text-indigo-400"
-                                  : t.area === "Magento"
-                                  ? "text-orange-400"
-                                  : "text-emerald-400"
-                              }`}>
-                                {t.area}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-[11px] text-neutral-400">{t.category || "—"}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span
-                                className={`font-mono text-xs font-medium ${
-                                  t.priority === "critical"
-                                    ? "text-rose-400"
-                                    : t.priority === "high"
-                                    ? "text-amber-400"
-                                    : t.priority === "medium"
-                                    ? "text-sky-400"
-                                    : "text-neutral-400"
-                                }`}
-                              >
-                                {t.priority}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              {t.status === "escalated_to_l3" ? (
-                                <span className="text-xs font-semibold text-rose-400 flex items-center gap-1.5 w-max">
-                                  <AlertOctagon className="w-3.5 h-3.5 text-rose-400" />
-                                  <span>L3 GERENCIA</span>
-                                </span>
-                              ) : t.status === "closed" ? (
-                                <span className="text-xs font-medium text-emerald-400 flex items-center gap-1.5 w-max">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span>Resuelto</span>
-                                </span>
-                              ) : (
-                                <span className="text-xs font-medium text-amber-400 flex items-center gap-1.5 w-max">
-                                  <Zap className="w-3.5 h-3.5 text-amber-400" />
-                                  <span>L2 Activo</span>
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-white font-medium text-[11px]">{t.assigned_to}</td>
-                            <td className="px-4 py-3 font-mono text-[11px] text-neutral-400">{t.sla_hours_left}h</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+                <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800">
+                  <div className="flex items-center justify-between text-neutral-400 text-xs mb-1">
+                    <span>En Atención (L2)</span>
+                    <Zap className="w-4 h-4 text-neutral-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white font-mono">
+                    {ticketsList.filter((t) => t.status === "escalated").length}
+                  </div>
+                  <div className="text-[11px] text-neutral-400 mt-1">
+                    Atención directa por especialistas
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800">
+                  <div className="flex items-center justify-between text-neutral-400 text-xs mb-1">
+                    <span>Escalados a L3</span>
+                    <AlertOctagon className="w-4 h-4 text-neutral-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white font-mono">
+                    {ticketsList.filter((t) => t.status === "escalated_to_l3").length}
+                  </div>
+                  <div className="text-[11px] text-neutral-400 mt-1">
+                    Supervisión gerencial requerida
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800">
+                  <div className="flex items-center justify-between text-neutral-400 text-xs mb-1">
+                    <span>Resueltos</span>
+                    <CheckCircle2 className="w-4 h-4 text-neutral-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-white font-mono">
+                    {ticketsList.filter((t) => t.status === "closed").length}
+                  </div>
+                  <div className="text-[11px] text-neutral-400 mt-1">
+                    Ciclo de atención completado
+                  </div>
                 </div>
               </div>
+
+              {/* Filtros y Búsqueda */}
+              <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-3">
+                <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between">
+                  {/* Búsqueda */}
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por ID, asunto, solicitante, categoría o responsable..."
+                      value={registrySearchQuery}
+                      onChange={(e) => setRegistrySearchQuery(e.target.value)}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-lg pl-9 pr-8 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-700"
+                    />
+                    {registrySearchQuery && (
+                      <button
+                        onClick={() => setRegistrySearchQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filtro por Estado */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-neutral-500 font-mono">Estado:</span>
+                    <select
+                      value={registryStatusFilter}
+                      onChange={(e) => setRegistryStatusFilter(e.target.value as any)}
+                      aria-label="Filtrar por estado del ticket"
+                      className="bg-neutral-900 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-300 focus:outline-none focus:border-neutral-700 font-mono"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="escalated">L2 Activo</option>
+                      <option value="escalated_to_l3">L3 Gerencia</option>
+                      <option value="closed">Resuelto</option>
+                    </select>
+                  </div>
+
+                  {/* Filtro por Prioridad */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-neutral-500 font-mono">Prioridad:</span>
+                    <select
+                      value={registryPriorityFilter}
+                      onChange={(e) => setRegistryPriorityFilter(e.target.value as any)}
+                      aria-label="Filtrar por prioridad del ticket"
+                      className="bg-neutral-900 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-300 focus:outline-none focus:border-neutral-700 font-mono"
+                    >
+                      <option value="all">Todas</option>
+                      <option value="critical">Crítica</option>
+                      <option value="high">Alta</option>
+                      <option value="medium">Media</option>
+                      <option value="low">Baja</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Filtro por Departamentos con pestañas */}
+                <div className="flex items-center gap-1.5 pt-2 border-t border-neutral-900 overflow-x-auto text-xs">
+                  <span className="text-[11px] text-neutral-500 font-mono mr-1">Área:</span>
+                  {(["all", "Infraestructura", "Sap", "Magento", "Sigo"] as OperatorArea[]).map((area) => {
+                    const count = ticketsList.filter((t) =>
+                      area === "all" ? true : t.area.toLowerCase() === area.toLowerCase()
+                    ).length;
+                    return (
+                      <button
+                        key={area}
+                        onClick={() => setRegistryAreaFilter(area)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
+                          registryAreaFilter === area
+                            ? "bg-neutral-800 text-white shadow-sm border border-neutral-700"
+                            : "text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent"
+                        }`}
+                      >
+                        <span>{area === "all" ? "Todas las Áreas" : area}</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-neutral-900 border border-neutral-800 text-neutral-300">
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tabla de Registros de Tickets */}
+              {(() => {
+                const filteredTickets = ticketsList.filter((t) => {
+                  const matchArea =
+                    registryAreaFilter === "all"
+                      ? true
+                      : t.area.toLowerCase() === registryAreaFilter.toLowerCase();
+                  const matchStatus =
+                    registryStatusFilter === "all" ? true : t.status === registryStatusFilter;
+                  const matchPriority =
+                    registryPriorityFilter === "all" ? true : t.priority === registryPriorityFilter;
+                  const q = registrySearchQuery.trim().toLowerCase();
+                  const matchSearch =
+                    q === ""
+                      ? true
+                      : t.id.toLowerCase().includes(q) ||
+                        t.title.toLowerCase().includes(q) ||
+                        t.requester.toLowerCase().includes(q) ||
+                        (t.requester_name && t.requester_name.toLowerCase().includes(q)) ||
+                        (t.category && t.category.toLowerCase().includes(q)) ||
+                        t.assigned_to.toLowerCase().includes(q) ||
+                        t.area.toLowerCase().includes(q);
+                  return matchArea && matchStatus && matchPriority && matchSearch;
+                });
+
+                return (
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden">
+                    <div className="p-3 border-b border-neutral-800 bg-neutral-900/60 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-white uppercase tracking-wider text-[11px]">
+                        Listado de Registros
+                      </span>
+                      <span className="font-mono text-neutral-400 text-[11px]">
+                        Mostrando {filteredTickets.length} de {ticketsList.length} tickets
+                      </span>
+                    </div>
+
+                    {filteredTickets.length === 0 ? (
+                      <div className="p-12 text-center space-y-2">
+                        <Ticket className="w-8 h-8 text-neutral-600 mx-auto" />
+                        <div className="text-sm font-medium text-neutral-300">
+                          No se encontraron registros con los filtros aplicados
+                        </div>
+                        <p className="text-xs text-neutral-500">
+                          Prueba ajustando los criterios de búsqueda o seleccionando otra área.
+                        </p>
+                        <button
+                          onClick={() => {
+                            setRegistrySearchQuery("");
+                            setRegistryAreaFilter("all");
+                            setRegistryStatusFilter("all");
+                            setRegistryPriorityFilter("all");
+                          }}
+                          className="mt-3 px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-xs text-neutral-300 transition"
+                        >
+                          Limpiar todos los filtros
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-neutral-900 text-neutral-400 border-b border-neutral-800 font-medium">
+                            <tr>
+                              <th className="px-4 py-3 font-mono">ID</th>
+                              <th className="px-4 py-3">Asunto / Solicitante</th>
+                              <th className="px-4 py-3">Departamento</th>
+                              <th className="px-4 py-3">Categoría</th>
+                              <th className="px-4 py-3">Prioridad</th>
+                              <th className="px-4 py-3">Estado</th>
+                              <th className="px-4 py-3">Responsable</th>
+                              <th className="px-4 py-3 font-mono">SLA</th>
+                              <th className="px-4 py-3 text-right">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-800 text-neutral-300">
+                            {filteredTickets.map((t) => (
+                              <tr
+                                key={t.id}
+                                onClick={() => setRegistryDetailTicket(t)}
+                                className="hover:bg-neutral-900/60 transition cursor-pointer"
+                              >
+                                <td className="px-4 py-3 font-mono text-neutral-300 font-semibold whitespace-nowrap">
+                                  {t.id}
+                                </td>
+                                <td className="px-4 py-3 max-w-xs">
+                                  <div className="font-medium text-white truncate">{t.title}</div>
+                                  <div className="text-[11px] text-neutral-500 flex items-center gap-1.5">
+                                    <span>{t.requester_name || t.requester}</span>
+                                    {t.created_at && (
+                                      <>
+                                        <span>•</span>
+                                        <span>{t.created_at}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
+                                    {t.area}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="text-[11px] text-neutral-400">{t.category || "—"}</span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300 uppercase">
+                                    {t.priority}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  {t.status === "escalated_to_l3" ? (
+                                    <span className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5 w-max px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800">
+                                      <AlertOctagon className="w-3.5 h-3.5 text-neutral-400" />
+                                      <span>L3 Gerencia</span>
+                                    </span>
+                                  ) : t.status === "closed" ? (
+                                    <span className="text-xs font-medium text-neutral-300 flex items-center gap-1.5 w-max px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-neutral-400" />
+                                      <span>Resuelto</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-medium text-neutral-300 flex items-center gap-1.5 w-max px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800">
+                                      <Zap className="w-3.5 h-3.5 text-neutral-400" />
+                                      <span>L2 Activo</span>
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-white font-medium text-[11px] whitespace-nowrap">
+                                  {t.assigned_to}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-[11px] text-neutral-400 whitespace-nowrap">
+                                  {t.sla_hours_left}h
+                                </td>
+                                <td className="px-4 py-3 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      onClick={() => setRegistryDetailTicket(t)}
+                                      className="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-[11px] text-neutral-300 hover:text-white transition"
+                                      title="Ver detalle del ticket"
+                                    >
+                                      Detalle
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedChatId(t.id);
+                                        handleSwitchTab("tickets");
+                                      }}
+                                      className="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-700 hover:border-neutral-500 text-[11px] text-white transition flex items-center gap-1"
+                                      title="Abrir en espacio de chat L2"
+                                    >
+                                      <span>Atender</span>
+                                      <ArrowRight className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Modal de Detalle de Ticket */}
+              {registryDetailTicket && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+                  <div
+                    className="w-full max-w-2xl bg-neutral-950 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between pb-4 border-b border-neutral-800">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-white">
+                            {registryDetailTicket.id}
+                          </span>
+                          <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
+                            {registryDetailTicket.area}
+                          </span>
+                          <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400 uppercase">
+                            Prioridad: {registryDetailTicket.priority}
+                          </span>
+                        </div>
+                        <h3 className="text-base font-semibold text-white">
+                          {registryDetailTicket.title}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => setRegistryDetailTicket(null)}
+                        className="p-1 rounded-lg text-neutral-500 hover:text-white hover:bg-neutral-900 transition"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Metadatos */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="p-3 rounded-lg bg-neutral-900 border border-neutral-800">
+                        <div className="text-[10px] text-neutral-500 font-mono">Solicitante</div>
+                        <div className="font-medium text-white truncate mt-0.5">
+                          {registryDetailTicket.requester_name || registryDetailTicket.requester}
+                        </div>
+                        <div className="text-[10px] text-neutral-400 truncate">
+                          {registryDetailTicket.requester}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-neutral-900 border border-neutral-800">
+                        <div className="text-[10px] text-neutral-500 font-mono">Responsable L2</div>
+                        <div className="font-medium text-white truncate mt-0.5">
+                          {registryDetailTicket.assigned_to}
+                        </div>
+                        <div className="text-[10px] text-neutral-400">Especialista L2</div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-neutral-900 border border-neutral-800">
+                        <div className="text-[10px] text-neutral-500 font-mono">Gerente L3</div>
+                        <div className="font-medium text-white truncate mt-0.5">
+                          {registryDetailTicket.manager_l3}
+                        </div>
+                        <div className="text-[10px] text-neutral-400 truncate">
+                          {registryDetailTicket.manager_email}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-neutral-900 border border-neutral-800">
+                        <div className="text-[10px] text-neutral-500 font-mono">SLA Restante</div>
+                        <div className="font-mono text-white text-sm font-semibold mt-0.5">
+                          {registryDetailTicket.sla_hours_left} horas
+                        </div>
+                        <div className="text-[10px] text-neutral-400">
+                          {registryDetailTicket.status === "closed" ? "Completado" : "En curso"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Resumen y Diagnóstico IA */}
+                    <div className="p-3.5 rounded-xl bg-neutral-900 border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-white uppercase tracking-wider flex items-center gap-1.5">
+                          <Bot className="w-3.5 h-3.5 text-neutral-300" />
+                          <span>Diagnóstico y Resumen Técnico</span>
+                        </span>
+                        {registryDetailTicket.confidence && (
+                          <span className="font-mono text-[10px] text-neutral-400">
+                            Confianza IA: {Math.round(registryDetailTicket.confidence * 100)}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-neutral-300 leading-relaxed">
+                        {registryDetailTicket.summary || "Sin resumen registrado."}
+                      </p>
+                      {registryDetailTicket.internal_notes && (
+                        <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-400 font-mono">
+                          <span className="text-neutral-500">Notas internas: </span>
+                          {registryDetailTicket.internal_notes}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Diálogo registrado */}
+                    {registryDetailTicket.dialogue && registryDetailTicket.dialogue.length > 0 && (
+                      <div className="space-y-2 text-xs">
+                        <div className="text-[11px] font-semibold text-white uppercase tracking-wider">
+                          Transcripción de Conversación
+                        </div>
+                        <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-3 max-h-48 overflow-y-auto">
+                          {registryDetailTicket.dialogue.map((d, idx) => (
+                            <div key={d.id || idx} className="space-y-1">
+                              <div className="flex items-center justify-between text-[10px] font-mono text-neutral-500">
+                                <span className="font-semibold text-neutral-300">
+                                  {d.sender_name || (d.sender === "customer" ? "Solicitante" : d.sender === "ai" ? "IA L1" : "Operador L2")}
+                                </span>
+                                <span>{d.time}</span>
+                              </div>
+                              <p className="text-neutral-300 text-xs bg-neutral-950 p-2.5 rounded-lg border border-neutral-800/80">
+                                {d.text}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Botones del Modal */}
+                    <div className="flex items-center justify-between pt-3 border-t border-neutral-800">
+                      <button
+                        onClick={() => setRegistryDetailTicket(null)}
+                        className="px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-xs text-neutral-300 hover:text-white transition"
+                      >
+                        Cerrar
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const ticketId = registryDetailTicket.id;
+                          setRegistryDetailTicket(null);
+                          setSelectedChatId(ticketId);
+                          handleSwitchTab("tickets");
+                        }}
+                        className="px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-700 hover:border-neutral-500 text-xs text-white font-medium transition flex items-center gap-1.5"
+                      >
+                        <span>Atender en Chats Asignados</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

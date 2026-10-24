@@ -3,7 +3,7 @@
 import React from "react";
 
 interface SectionSkeletonProps {
-  tab: "tickets" | "simulator" | "analytics" | "documents" | "topology" | "ingestion_logs" | "models_cost" | "users" | string;
+  tab: "tickets" | "ticket_registry" | "simulator" | "analytics" | "documents" | "topology" | "ingestion_logs" | "models_cost" | "users" | string;
 }
 
 export default function SectionSkeleton({ tab }: SectionSkeletonProps) {
@@ -194,7 +194,7 @@ export default function SectionSkeleton({ tab }: SectionSkeletonProps) {
     );
   }
 
-  if (tab === "users") {
+  if (tab === "users" || tab === "ticket_registry") {
     return (
       <div className="p-6 space-y-6 flex-1 overflow-y-auto animate-pulse">
         {/* Header */}

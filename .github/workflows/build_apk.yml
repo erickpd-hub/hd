@@ -1,0 +1,42 @@
+name: Build Flutter APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Generate Android Scaffolding & Get Dependencies
+        working-directory: ./mobile_chat_app
+        run: |
+          flutter create . --org com.empresa --project-name portal_usuario_chat --platforms android
+          flutter pub get
+
+      - name: Build APK Release
+        working-directory: ./mobile_chat_app
+        run: flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-usuario-chat-release
+          path: mobile_chat_app/build/app/outputs/flutter-apk/app-release.apk
