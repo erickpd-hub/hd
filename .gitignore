@@ -39,3 +39,11 @@ backend/.env
 Thumbs.db
 .idea/
 .vscode/
+
+# Mobile / Flutter / Gradle
+.gradle/
+**/android/.gradle/
+**/.dart_tool/
+**/build/
+.flutter-plugins
+.flutter-plugins-dependencies

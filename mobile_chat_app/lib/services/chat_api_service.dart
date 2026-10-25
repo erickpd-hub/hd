@@ -64,40 +64,89 @@ class ChatApiService {
   ChatMessage _generateLocalFallbackResponse(String text, String? ticketId) {
     final q = text.toLowerCase();
     String area = 'Infraestructura';
-    String answer =
-        'He registrado tu incidencia. He derivado el caso con el diagnostico tecnico correspondiente para revision de SLA.';
+    String agentName = 'Carlos Mendoza (L2 Infraestructura)';
+    String manualName = 'manual_infraestructura_redes_win.pdf';
+    String excerpt =
+        'Comprueba la configuración de credenciales y el estado del servicio en Active Directory.';
 
-    if (q.contains('sap') || q.contains('factura') || q.contains('sku')) {
+    if (q.contains('sap') ||
+        q.contains('factura') ||
+        q.contains('sku') ||
+        q.contains('cfdi') ||
+        q.contains('pago')) {
       area = 'Sap';
-      answer =
-          'Tu requerimiento sobre SAP ERP ha sido analizado por el agente autónomo. Si el problema persiste con CFDI o asientos contables, el caso será escalado al especialista L2.';
-    } else if (q.contains('magento') || q.contains('pos') || q.contains('tienda')) {
+      agentName = 'Elena Rostova (L2 SAP & Finanzas)';
+      manualName = 'guia_sap_erp_sku_facturacion.pdf';
+      excerpt =
+          'Validación de transacciones contables, catálogo de SKUs y timbrado de facturación fiscal.';
+    } else if (q.contains('magento') ||
+        q.contains('pos') ||
+        q.contains('tienda') ||
+        q.contains('checkout') ||
+        q.contains('carrito')) {
       area = 'Magento';
-      answer =
-          'Detectada consulta de plataforma Magento / POS. Se han verificado las políticas de pasarela y claves de sucursal.';
-    } else if (q.contains('sigo') || q.contains('logistica') || q.contains('despacho')) {
+      agentName = 'Marcos Toledo (L2 Magento & Ecommerce)';
+      manualName = 'manual_magento_pos_checkout.pdf';
+      excerpt =
+          'Verificación de endpoints POS, sincronización de existencias de sucursal y pasarelas de cobro.';
+    } else if (q.contains('sigo') ||
+        q.contains('logistica') ||
+        q.contains('logística') ||
+        q.contains('despacho') ||
+        q.contains('ruta') ||
+        q.contains('bodega') ||
+        q.contains('almacen')) {
       area = 'Sigo';
-      answer =
-          'Consulta identificada en el sistema de logística y despachos Sigo. Validando trazabilidad de guías y rutas.';
-    } else if (q.contains('windows') || q.contains('clave') || q.contains('impresora') || q.contains('red')) {
-      area = 'Infraestructura';
-      answer =
-          'Reporte de Infraestructura TI recibido. Se verifica estado de cuenta en Active Directory y conectividad de red local.';
+      agentName = 'Sofía Guzmán (L2 Sigo & Logística)';
+      manualName = 'manual_operativo_sigo_despachos.pdf';
+      excerpt =
+          'Control de rutas de despacho, estatus de unidades de transporte y recepción de bodega central.';
     }
 
-    final newId = ticketId ?? 'TK-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    final isEscalation = q.contains('humano') ||
+        q.contains('persona') ||
+        q.contains('urgente') ||
+        q.contains('bloque') ||
+        q.contains('falla') ||
+        q.contains('error') ||
+        q.contains('no puedo') ||
+        q.contains('caído') ||
+        q.contains('caido') ||
+        q.contains('clave');
+
+    final newTicketId = ticketId ??
+        'TK-${(2000 + (DateTime.now().millisecondsSinceEpoch % 7999)).toString()}';
+
+    String aiContent;
+    if (isEscalation) {
+      aiContent =
+          'Comprendo la criticidad del problema. He generado el ticket #$newTicketId y lo he derivado de inmediato al departamento de $area.\n\nEl especialista $agentName ha recibido el caso con todo el historial de la conversación y ya se encuentra revisando tu incidencia.';
+    } else {
+      aiContent =
+          'Hemos verificado la documentación oficial del departamento de $area para resolver tu consulta:\n\n1. Comprueba la configuración de credenciales y el estado del servicio de $area.\n2. Si el problema persiste o requieres asistencia de un operador humano, indícanos "requiero hablar con un agente" para transferirte con $agentName.';
+    }
 
     return ChatMessage(
       id: 'ai-local-${DateTime.now().millisecondsSinceEpoch}',
-      sender: MessageSender.ai,
-      text: answer,
+      sender: isEscalation ? MessageSender.l2 : MessageSender.ai,
+      text: aiContent,
       timestamp: DateTime.now(),
-      ticketId: newId,
+      ticketId: newTicketId,
       areaName: area,
-      categoryName: 'Soporte General',
-      confidenceScore: 0.88,
-      resolvedByAi: true,
-      status: 'escalated',
+      categoryName: 'Soporte $area',
+      assignedAgent: isEscalation ? agentName : null,
+      confidenceScore: isEscalation ? 0.45 : 0.94,
+      resolvedByAi: !isEscalation,
+      status: isEscalation ? 'escalated' : 'resolved',
+      citations: [
+        SourceCitation(
+          documentName: manualName,
+          chunkIndex: 1,
+          relevanceScore: isEscalation ? 0.72 : 0.94,
+          excerpt: excerpt,
+        ),
+      ],
     );
   }
 }
+
