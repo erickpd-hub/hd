@@ -31,6 +31,7 @@ jobs:
           rm -rf android
           flutter create . --org com.empresa --project-name portal_usuario_chat --platforms android
           sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>' android/app/src/main/AndroidManifest.xml
+          cp -r assets/res/* android/app/src/main/res/
           flutter pub get
 
       - name: Build APK Release

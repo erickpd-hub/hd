@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/chat_message.dart';
 import '../models/citation.dart';
@@ -25,11 +26,17 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen>
+    with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ChatApiService _apiService = ChatApiService();
+
+  late AnimationController _transitionController;
+  late Animation<double> _blurAnimation;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _overlayOpacity;
 
   List<ChatMessage> _messages = [];
   bool _isLoading = false;
@@ -78,6 +85,31 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _transitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950),
+    );
+    _blurAnimation = Tween<double>(begin: 20.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _transitionController,
+        curve: const Interval(0.12, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+    _scaleAnimation = Tween<double>(begin: 0.97, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _transitionController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    _overlayOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _transitionController,
+        curve: const Interval(0.35, 0.95, curve: Curves.easeOut),
+      ),
+    );
+
+    _transitionController.forward();
+
     _inputController.addListener(() {
       setState(() {});
     });
@@ -85,10 +117,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _transitionController.dispose();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
+
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -381,77 +415,186 @@ class _ChatScreenState extends State<ChatScreen> {
       key: _scaffoldKey,
       backgroundColor: Colors.black,
       drawer: _buildDrawer(),
-      body: Stack(
-        children: [
-          // =========================================================================
-          // FONDO CON COLOR GRADING AZUL INDIGO NOCTURNO (IDENTICO AL PORTAL WEB)
-          // =========================================================================
-          Positioned.fill(
-            child: Container(color: Colors.black),
-          ),
-          // Gradiente radial profundo con azul nocturno emergiendo en la mitad inferior
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0.0, 1.25),
-                  radius: 1.15,
-                  colors: [
-                    Color(0xD1142359), // rgba(20, 35, 89, 0.82)
-                    Color(0x8C0B163A), // rgba(11, 22, 58, 0.55)
-                    Color(0x47050A1E), // rgba(5, 10, 30, 0.28)
-                    Color(0x00000000), // transparent
-                  ],
-                  stops: [0.0, 0.35, 0.65, 0.95],
-                ),
-              ),
-            ),
-          ),
-          // Resplandor suave inferior que abraza el area del input flotante
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 380,
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Color(0x590E1A46), // rgba(14, 26, 70, 0.35)
-                    Color(0x00000000),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // =========================================================================
-          // ESTRUCTURA PRINCIPAL DE LA PANTALLA
-          // =========================================================================
-          SafeArea(
-            child: Column(
+      body: AnimatedBuilder(
+        animation: _transitionController,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: Stack(
               children: [
-                // 1. HEADER RESPONSIVE (ESTILO GLASS SIN BORDES)
-                _buildHeader(hasContent),
+                // Contenido principal de la pantalla
+                child!,
 
-                // 2. CONTENIDO PRINCIPAL: FEED DE MENSAJES O PANTALLA DE INICIO
-                Expanded(
-                  child: hasContent
-                      ? _buildMessageFeed()
-                      : _buildEmptyStateScreen(),
-                ),
+                // Capa de transición con desenfoque (blur) al abrir
+                if (_blurAnimation.value > 0.05)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: _transitionController.value > 0.75,
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: _blurAnimation.value,
+                          sigmaY: _blurAnimation.value,
+                        ),
+                        child: Container(
+                          color: Colors.black
+                              .withOpacity(0.35 * _overlayOpacity.value),
+                        ),
+                      ),
+                    ),
+                  ),
 
-                // 3. BARRA DE ENTRADA: CAPSULA FLOTANTE ESTILO GEMINI
-                _buildFloatingInputCapsule(),
+                // Insignia / Overlay de entrada suave al iniciar
+                if (_overlayOpacity.value > 0.01)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: _overlayOpacity.value,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 22, vertical: 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xDE0A0A0E),
+                              borderRadius: BorderRadius.circular(20),
+                              border:
+                                  Border.all(color: const Color(0x33333333)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.6),
+                                  blurRadius: 36,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF17171A),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.shield_outlined,
+                                      size: 22,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF17171A),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'AUTENTICACIÓN SEGURA • RLS ACTIVO',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontFamily: 'monospace',
+                                      color: Color(0xFFA3A3A3),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Portal de Soporte L1',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
-          ),
-        ],
+          );
+        },
+        child: Stack(
+          children: [
+            // =========================================================================
+            // FONDO CON COLOR GRADING AZUL INDIGO NOCTURNO (IDENTICO AL PORTAL WEB)
+            // =========================================================================
+            Positioned.fill(
+              child: Container(color: Colors.black),
+            ),
+            // Gradiente radial profundo con azul nocturno emergiendo en la mitad inferior
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(0.0, 1.25),
+                    radius: 1.15,
+                    colors: [
+                      Color(0xD1142359), // rgba(20, 35, 89, 0.82)
+                      Color(0x8C0B163A), // rgba(11, 22, 58, 0.55)
+                      Color(0x47050A1E), // rgba(5, 10, 30, 0.28)
+                      Color(0x00000000), // transparent
+                    ],
+                    stops: [0.0, 0.35, 0.65, 0.95],
+                  ),
+                ),
+              ),
+            ),
+            // Resplandor suave inferior que abraza el area del input flotante
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 380,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Color(0x590E1A46), // rgba(14, 26, 70, 0.35)
+                      Color(0x00000000),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // =========================================================================
+            // ESTRUCTURA PRINCIPAL DE LA PANTALLA
+            // =========================================================================
+            SafeArea(
+              child: Column(
+                children: [
+                  // 1. HEADER RESPONSIVE (ESTILO GLASS SIN BORDES)
+                  _buildHeader(hasContent),
+
+                  // 2. CONTENIDO PRINCIPAL: FEED DE MENSAJES O PANTALLA DE INICIO
+                  Expanded(
+                    child: hasContent
+                        ? _buildMessageFeed()
+                        : _buildEmptyStateScreen(),
+                  ),
+
+                  // 3. BARRA DE ENTRADA: CAPSULA FLOTANTE ESTILO GEMINI
+                  _buildFloatingInputCapsule(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
 
   // Header superior idéntico al modo responsive de la página web
   Widget _buildHeader(bool hasContent) {
