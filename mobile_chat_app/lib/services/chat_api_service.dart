@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/chat_message.dart';
+import '../models/citation.dart';
 
 class ChatApiService {
   String baseUrl;

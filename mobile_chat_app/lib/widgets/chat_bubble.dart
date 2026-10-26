@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/chat_message.dart';
+import '../models/citation.dart';
 
 class ChatBubble extends StatefulWidget {
   final ChatMessage message;
